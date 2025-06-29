@@ -1,31 +1,47 @@
-# etl_pipeline.py
-
-# 📦 Import necessary libraries
 import pandas as pd
 import numpy as np
+import logging
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 
-#️ EXTRACT: Load the data
-def extract_data(file_path):
-    print("Extracting data...")
-    data = pd.read_csv(file_path)
-    print("Data shape:", data.shape)
-    return data
-#️ TRANSFORM: Preprocess the data
-def transform_data(data):
-    print("\nTransforming data...")
+#  Fix: Set up logging for Colab (console only, no file)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
-    # Identify numeric and categorical columns
+# Clear duplicate handlers (common issue in Colab)
+if logger.hasHandlers():
+    logger.handlers.clear()
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
+
+# Extract
+def extract_data(file_path):
+    logger.info("Extracting data...")
+    try:
+        data = pd.read_csv(file_path)
+        logger.info("Data shape: %s", data.shape)
+        return data
+    except Exception as e:
+        logger.error("Extraction failed: %s", e)
+        raise
+
+#  Transform
+def transform_data(data):
+    logger.info("Transforming data...")
+
     numeric_cols = data.select_dtypes(include=['int64', 'float64']).columns
     categorical_cols = data.select_dtypes(include=['object']).columns
 
-    print("Numeric columns:", list(numeric_cols))
-    print("Categorical columns:", list(categorical_cols))
+    logger.info("Numeric columns: %s", list(numeric_cols))
+    logger.info("Categorical columns: %s", list(categorical_cols))
 
-    # Pipelines for numeric and categorical features
     numeric_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='mean')),
         ('scaler', StandardScaler())
@@ -36,7 +52,6 @@ def transform_data(data):
         ('encoder', OneHotEncoder(handle_unknown='ignore'))
     ])
 
-    # Combine transformations
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', numeric_transformer, numeric_cols),
@@ -44,57 +59,61 @@ def transform_data(data):
         ]
     )
 
-    # Fit and transform the data
-    transformed_data = preprocessor.fit_transform(data)
+    try:
+        transformed_data = preprocessor.fit_transform(data)
+        transformed_df = pd.DataFrame(
+            transformed_data.toarray() if hasattr(transformed_data, "toarray") else transformed_data
+        )
+        logger.info("Transformation complete. New shape: %s", transformed_df.shape)
+        return transformed_df
+    except Exception as e:
+        logger.error("Transformation failed: %s", e)
+        raise
 
-    # Return transformed data as DataFrame (optional)
-    transformed_df = pd.DataFrame(
-        transformed_data.toarray() if hasattr(transformed_data, "toarray") else transformed_data
-    )
-    
-    print("Transformed data shape:", transformed_df.shape)
-    return transformed_df
-#️ LOAD: Save the cleaned data to CSV
+#  Load
 def load_data(cleaned_data, output_path):
-    print("\nLoading data to CSV...")
-    cleaned_data.to_csv(output_path, index=False)
-    print(f"Cleaned data saved to {output_path}")
+    logger.info("Saving cleaned data...")
+    try:
+        cleaned_data.to_csv(output_path, index=False)
+        logger.info("Data saved to %s", output_path)
+    except Exception as e:
+        logger.error("Saving failed: %s", e)
+        raise
 
-#  Main function to run pipeline
+# Run ETL
 def run_pipeline():
-    input_file = "sample_data.csv"  # Replace with your CSV file path
+    input_file = "sample_data.csv"
     output_file = "cleaned_data.csv"
+    logger.info("Starting ETL pipeline...")
 
-    # Run the ETL steps
-    raw_data = extract_data(input_file)
-    cleaned_data = transform_data(raw_data)
-    load_data(cleaned_data, output_file)
+    try:
+        raw_data = extract_data(input_file)
+        cleaned_data = transform_data(raw_data)
+        load_data(cleaned_data, output_file)
+        logger.info("ETL pipeline completed successfully.")
+    except Exception as e:
+        logger.critical("ETL failed: %s", e)
 
-#  Execute the pipeline
-if __name__ == "__main__":
-    run_pipeline()
+#  Generate dummy data for Colab testing
+def create_sample_csv():
+    data = {
+        'numeric_col_1': np.random.rand(100) * 100,
+        'numeric_col_2': np.random.randint(1, 50, 100),
+        'categorical_col_1': np.random.choice(['A', 'B', 'C', 'D'], 100),
+        'categorical_col_2': np.random.choice(['X', 'Y', 'Z', None], 100, p=[0.3, 0.3, 0.3, 0.1]),
+        'numeric_col_3': np.random.randn(100) * 10 + 50
+    }
 
-# Create a dummy CSV file for testing
-import pandas as pd
-import numpy as np
+    df = pd.DataFrame(data)
+    for col in ['numeric_col_1', 'numeric_col_2', 'numeric_col_3']:
+        df.loc[df.sample(frac=0.05).index, col] = np.nan
+    df.to_csv("sample_data.csv", index=False)
+    logger.info("Sample CSV file created.")
 
-# Generate some sample data
-data = {
-    'numeric_col_1': np.random.rand(100) * 100,
-    'numeric_col_2': np.random.randint(1, 50, 100),
-    'categorical_col_1': np.random.choice(['A', 'B', 'C', 'D'], 100),
-    'categorical_col_2': np.random.choice(['X', 'Y', 'Z', None], 100, p=[0.3, 0.3, 0.3, 0.1]), # Include some missing values
-    'numeric_col_3': np.random.randn(100) * 10 + 50 # Another numeric column
-}
+# Run everything in order
+create_sample_csv()
+run_pipeline()
 
-sample_df = pd.DataFrame(data)
+# View output
+pd.read_csv("cleaned_data.csv").head()
 
-# Introduce some missing values in numeric columns
-for col in ['numeric_col_1', 'numeric_col_2', 'numeric_col_3']:
-    sample_df.loc[sample_df.sample(frac=0.05).index, col] = np.nan
-
-# Save the dummy data to a CSV file
-sample_df.to_csv("sample_data.csv", index=False)
-
-print("Created sample_data.csv")
-display(sample_df.head())
