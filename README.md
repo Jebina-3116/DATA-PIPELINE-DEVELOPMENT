@@ -88,6 +88,7 @@ This project demonstrates a practical, beginner-friendly ETL pipeline implementa
 OUTPUT:
 
 <img width="863" height="733" alt="Image" src="https://github.com/user-attachments/assets/bafd26e4-200b-4ae2-b353-2fb45758ae58" />
+<img width="785" height="282" alt="Image" src="https://github.com/user-attachments/assets/8bf234da-0f15-477b-a44c-ef0f837a1989" />
 
 
 
